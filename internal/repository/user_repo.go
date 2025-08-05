@@ -12,7 +12,7 @@ type userRepository struct {
 }
 
 // NewUserRepository 创建仓库实例
-func NewUserRepository(db *gorm.DB) user.UserRepository {
+func NewUserRepository(db *gorm.DB) user.Repository {
 	return &userRepository{
 		db: db,
 	}
@@ -61,4 +61,29 @@ func (r *userRepository) ExistsByEmail(email string) (bool, error) {
 		return false, result.Error
 	}
 	return count > 0, nil
+}
+
+// FindByGitHubID 根据 GitHub ID 查询用户
+func (r *userRepository) FindByGitHubID(githubID int64) (*user.User, error) {
+	var u user.User
+	result := r.db.Where("github_id = ?", githubID).First(&u)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &u, nil
+}
+
+// FindByEmail 根据邮箱查询用户
+func (r *userRepository) FindByEmail(email string) (*user.User, error) {
+	var u user.User
+	result := r.db.Where("email = ?", email).First(&u)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &u, nil
+}
+
+// Update 更新用户信息
+func (r *userRepository) Update(u *user.User) error {
+	return r.db.Save(u).Error
 }

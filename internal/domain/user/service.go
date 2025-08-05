@@ -2,15 +2,18 @@ package user
 
 import (
 	"errors"
+	"fmt"
+
+	"auth-service/pkg/oauth2"
 )
 
 // Service 领域服务：封装用户领域的业务逻辑
 type Service struct {
-	repo UserRepository // 依赖仓库接口（抽象），而非具体实现
+	repo Repository // 依赖仓库接口（抽象），而非具体实现
 }
 
 // NewService 创建领域服务实例（通过依赖注入仓库接口）
-func NewService(repo UserRepository) *Service {
+func NewService(repo Repository) *Service {
 	return &Service{
 		repo: repo,
 	}
@@ -70,4 +73,53 @@ func (s *Service) GetByID(id uint) (*User, error) {
 		return nil, errors.New("用户ID无效")
 	}
 	return s.repo.FindByID(id)
+}
+
+// LoginWithGitHub 使用 GitHub OAuth2 登录或注册
+func (s *Service) LoginWithGitHub(githubUser *oauth2.GitHubUser) (*User, error) {
+	// 1. 先通过 GitHub ID 查找用户
+	existingUser, err := s.repo.FindByGitHubID(githubUser.ID)
+	if err == nil {
+		// 用户已存在，更新信息并返回
+		existingUser.AvatarURL = githubUser.AvatarURL
+		if err := s.repo.Update(existingUser); err != nil {
+			return nil, fmt.Errorf("更新用户信息失败: %w", err)
+		}
+		return existingUser, nil
+	}
+
+	// 2. 如果通过 GitHub ID 找不到，尝试通过邮箱查找
+	if githubUser.Email != "" {
+		existingUser, err := s.repo.FindByEmail(githubUser.Email)
+		if err == nil {
+			// 邮箱已存在，绑定 GitHub 账号
+			existingUser.GitHubID = &githubUser.ID
+			existingUser.AvatarURL = githubUser.AvatarURL
+			existingUser.AuthType = "github"
+			if err := s.repo.Update(existingUser); err != nil {
+				return nil, fmt.Errorf("绑定 GitHub 账号失败: %w", err)
+			}
+			return existingUser, nil
+		}
+	}
+
+	// 3. 用户不存在，创建新用户
+	newUser := &User{
+		Username:  githubUser.Login,
+		Email:     githubUser.Email,
+		GitHubID:  &githubUser.ID,
+		AvatarURL: githubUser.AvatarURL,
+		AuthType:  "github",
+	}
+
+	// 检查用户名是否已存在，如果存在则添加后缀
+	if exists, _ := s.repo.ExistsByUsername(newUser.Username); exists {
+		newUser.Username = fmt.Sprintf("%s_%d", githubUser.Login, githubUser.ID)
+	}
+
+	if err := s.repo.Create(newUser); err != nil {
+		return nil, fmt.Errorf("创建用户失败: %w", err)
+	}
+
+	return newUser, nil
 }

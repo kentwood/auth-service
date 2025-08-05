@@ -5,18 +5,21 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
-// User 领域实体：表示系统中的用户
+// User 用户实体
 type User struct {
-	ID        uint           `gorm:"primarykey" json:"id"`
-	Username  string         `gorm:"uniqueIndex;not null;size:50" json:"username"` // 用户名（唯一）
-	Password  string         `gorm:"not null" json:"-"`                            // 密码（哈希存储，不返回给前端）
-	Email     string         `gorm:"uniqueIndex;size:100" json:"email"`            // 邮箱（唯一）
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Username  string    `gorm:"uniqueIndex;size:50;not null" json:"username"`
+	Email     string    `gorm:"uniqueIndex;size:100;not null" json:"email"`
+	Password  string    `gorm:"size:255" json:"-"` // 对于OAuth2用户，可能为空
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// OAuth2 相关字段
+	GitHubID  *int64 `gorm:"uniqueIndex" json:"github_id,omitempty"`   // GitHub 用户ID
+	AvatarURL string `gorm:"size:255" json:"avatar_url,omitempty"`     // 头像URL
+	AuthType  string `gorm:"size:20;default:'local'" json:"auth_type"` // 认证类型：local, github
 }
 
 // 领域错误定义：在领域层内部定义，供服务层使用
@@ -62,4 +65,17 @@ func (u *User) Validate() error {
 		return ErrEmailInvalid
 	}
 	return nil
+}
+
+// IsOAuth2User 检查是否是 OAuth2 用户
+func (u *User) IsOAuth2User() bool {
+	return u.AuthType != "local"
+}
+
+// CanLogin 检查用户是否可以登录
+func (u *User) CanLogin() bool {
+	if u.AuthType == "local" {
+		return u.Password != ""
+	}
+	return true // OAuth2 用户总是可以登录
 }

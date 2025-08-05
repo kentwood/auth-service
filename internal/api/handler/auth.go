@@ -60,7 +60,7 @@ func NewAuthHandler(userService *user.Service, jwtSecret string, logger *logger.
 // @Success 200 {object} gin.H{token:string, user_id:uint, username:string}
 // @Failure 400 {object} gin.H{error:string}
 // @Failure 401 {object} gin.H{error:string}
-// @Router /auth/v1/login [post]
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	// 绑定并验证请求参数
@@ -131,7 +131,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Success 201 {object} gin.H{message:string, user:UserResponse}
 // @Failure 400 {object} gin.H{error:string}
 // @Failure 500 {object} gin.H{error:string}
-// @Router /auth/v1/register [post]
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -205,7 +205,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Success 200 {object} UserResponse
 // @Failure 401 {object} gin.H{error:string}
 // @Failure 500 {object} gin.H{error:string}
-// @Router /auth/v1/user/me [get]
+// @Router /auth/user/me [get]
 func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	// 从JWT中间件获取用户ID（假设中间件将用户ID存储在上下文）
 	userID, exists := c.Get("userID")
