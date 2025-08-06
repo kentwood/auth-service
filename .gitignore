@@ -94,3 +94,4 @@ docs/build/
 
 # 敏感的示例配置文件（保留模板）
 # configs/config.example.yaml  # 这个文件应该保留作为模板
+localhost.session.sql

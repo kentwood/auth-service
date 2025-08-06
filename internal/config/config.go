@@ -8,9 +8,20 @@ import (
 type Config struct {
 	Server ServerConfig `mapstructure:"server"`
 	DB     DBConfig     `mapstructure:"db"`
+	Redis  RedisConfig  `mapstructure:"redis"`
 	JWT    JWTConfig    `mapstructure:"jwt"`
 	Log    LogConfig    `mapstructure:"log"`
-	OAuth2 OAuth2Config `mapstructure:"oauth2"` // 新增 OAuth2 配置
+	OAuth2 OAuth2Config `mapstructure:"oauth2"`
+	UI     UIConfig     `mapstructure:"ui"` // 新增 UI 配置
+}
+
+// RedisConfig Redis 配置
+type RedisConfig struct {
+    Host     string `mapstructure:"host"`
+    Port     string `mapstructure:"port"`
+    Password string `mapstructure:"password"`
+    DB       int    `mapstructure:"db"`
+    Prefix   string `mapstructure:"prefix"` // key 前缀
 }
 
 // ServerConfig 服务配置
@@ -43,6 +54,13 @@ type JWTConfig struct {
 // LogConfig 日志配置
 type LogConfig struct {
 	Level string `mapstructure:"level"` // debug/info/warn/error
+}
+
+// UIConfig 前端页面配置
+type UIConfig struct {
+	BaseURL          string `mapstructure:"base_url"`           // 前端基础URL
+	LoginSuccessPath string `mapstructure:"login_success_path"` // 登录成功页面路径
+	LoginErrorPath   string `mapstructure:"login_error_path"`   // 登录失败页面路径
 }
 
 // OAuth2Config OAuth2 配置

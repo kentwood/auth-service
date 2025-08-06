@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
+	"auth-service/internal/config"
 	"auth-service/internal/domain/user"
 	"auth-service/pkg/jwt"
 	"auth-service/pkg/logger"
@@ -21,9 +22,10 @@ type LoginRequest struct {
 
 // RegisterRequest 注册请求参数结构体
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=20"`
-	Password string `json:"password" binding:"required,min=6"`
-	Email    string `json:"email" binding:"required,email"` // 邮箱格式验证
+	Username         string `json:"username" binding:"required,min=3,max=20"`
+	Password         string `json:"password" binding:"required,min=6"`
+	Email            string `json:"email" binding:"required,email"`             // 邮箱格式验证
+	VerificationCode string `json:"verification_code" binding:"required,len=6"` // 新增：邮箱验证码，必须6位
 }
 
 // UserResponse 用户信息响应结构体
@@ -31,21 +33,23 @@ type UserResponse struct {
 	ID        uint      `json:"id"`
 	Username  string    `json:"username"`
 	Email     string    `json:"email"`
+	AuthType  string    `json:"auth_type,omitempty"`  // 认证类型
+	AvatarURL string    `json:"avatar_url,omitempty"` // 头像URL
 	CreatedAt time.Time `json:"created_at"`
 }
 
 // AuthHandler 认证处理器
 type AuthHandler struct {
-	userService *user.Service     // 依赖用户服务层
-	jwtSecret   string            // JWT签名密钥
-	logger      *logger.ZapLogger // 日志记录器
+	userService *user.Service
+	config      *config.Config // 使用完整配置替代 jwtSecret
+	logger      *logger.ZapLogger
 }
 
 // NewAuthHandler 创建认证处理器实例
-func NewAuthHandler(userService *user.Service, jwtSecret string, logger *logger.ZapLogger) *AuthHandler {
+func NewAuthHandler(userService *user.Service, cfg *config.Config, logger *logger.ZapLogger) *AuthHandler {
 	return &AuthHandler{
 		userService: userService,
-		jwtSecret:   jwtSecret,
+		config:      cfg,
 		logger:      logger,
 	}
 }
@@ -93,8 +97,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 生成JWT令牌（有效期24小时）
-	token, err := jwt.GenerateToken(u.ID, u.Username, h.jwtSecret, 24*time.Hour)
+	// 生成JWT令牌（使用配置文件中的密钥）
+	token, err := jwt.GenerateToken(u.ID, u.Username, h.config.JWT.Secret, 2*time.Hour)
 	if err != nil {
 		// 记录令牌生成失败的详细错误
 		h.logger.Error("JWT令牌生成失败",
@@ -123,11 +127,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 // Register 处理用户注册请求
 // @Summary 用户注册
-// @Description 创建新用户账号
+// @Description 创建新用户账号，需要提供邮箱验证码
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body RegisterRequest true "注册参数"
+// @Param request body RegisterRequest true "注册参数，包含邮箱验证码"
 // @Success 201 {object} gin.H{message:string, user:UserResponse}
 // @Failure 400 {object} gin.H{error:string}
 // @Failure 500 {object} gin.H{error:string}
@@ -138,9 +142,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		// 记录参数验证失败
 		h.logger.Warn("用户注册失败：请求参数无效",
 			zap.String("username", req.Username),
+			zap.String("email", req.Email),
 			zap.Error(err),
 		)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求参数: " + err.Error()})
+		return
+	}
+
+	// 验证邮箱验证码（模拟验证，实际项目中应该从Redis或数据库中验证）
+	if !h.validateEmailVerificationCode(req.Email, req.VerificationCode) {
+		h.logger.Warn("用户注册失败：邮箱验证码错误",
+			zap.String("username", req.Username),
+			zap.String("email", req.Email),
+			zap.String("verification_code", req.VerificationCode),
+			zap.String("client_ip", c.ClientIP()),
+		)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱验证码错误"})
 		return
 	}
 
@@ -156,6 +173,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		case user.ErrUsernameExists:
 			h.logger.Warn("用户注册失败：用户名已存在",
 				zap.String("username", req.Username),
+				zap.String("email", req.Email),
 			)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "用户名已被注册"})
 		case user.ErrEmailExists:
@@ -193,6 +211,26 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			CreatedAt: newUser.CreatedAt,
 		},
 	})
+}
+
+// validateEmailVerificationCode 验证邮箱验证码
+// 当前为模拟实现，实际项目中应该从Redis或数据库中验证
+func (h *AuthHandler) validateEmailVerificationCode(email, code string) bool {
+	// 模拟验证逻辑：只有验证码为 "123456" 时才通过
+	if code == "123456" {
+		h.logger.Debug("邮箱验证码验证通过（模拟）",
+			zap.String("email", email),
+			zap.String("code", code),
+		)
+		return true
+	}
+
+	// 记录验证失败的日志（用于安全审计）
+	h.logger.Debug("邮箱验证码验证失败（模拟）",
+		zap.String("email", email),
+		zap.String("code", code),
+	)
+	return false
 }
 
 // GetCurrentUser 获取当前登录用户信息

@@ -93,7 +93,7 @@ func (s *Service) LoginWithGitHub(githubUser *oauth2.GitHubUser) (*User, error) 
 		existingUser, err := s.repo.FindByEmail(githubUser.Email)
 		if err == nil {
 			// 邮箱已存在，绑定 GitHub 账号
-			existingUser.GitHubID = &githubUser.ID
+			existingUser.GithubID = &githubUser.ID
 			existingUser.AvatarURL = githubUser.AvatarURL
 			existingUser.AuthType = "github"
 			if err := s.repo.Update(existingUser); err != nil {
@@ -107,7 +107,7 @@ func (s *Service) LoginWithGitHub(githubUser *oauth2.GitHubUser) (*User, error) 
 	newUser := &User{
 		Username:  githubUser.Login,
 		Email:     githubUser.Email,
-		GitHubID:  &githubUser.ID,
+		GithubID:  &githubUser.ID,
 		AvatarURL: githubUser.AvatarURL,
 		AuthType:  "github",
 	}

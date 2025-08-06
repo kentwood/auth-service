@@ -49,15 +49,6 @@ func Connect(cfg *config.DBConfig) (*gorm.DB, error) {
 	return db, nil
 }
 
-// contains 检查字符串是否包含子字符串
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) &&
-		(s == substr ||
-			s[:len(substr)] == substr ||
-			s[len(s)-len(substr):] == substr ||
-			len(s) > len(substr) && (s[len(substr)] == ' ' || s[len(substr)] == '=' || s[len(substr)] == ':'))
-}
-
 // buildPostgresDSN 构建PostgreSQL连接字符串
 func buildPostgresDSN(cfg *config.DBConfig) string {
 	return fmt.Sprintf(

@@ -10,15 +10,17 @@ import (
 // Setup 注册所有路由
 func Setup(r *gin.Engine,
 	authHandler *handler.AuthHandler,
-	oauth2Handler *handler.OAuth2Handler) {
+	oauth2Handler *handler.OAuth2Handler,
+	jwtSecret string) {
 	// 应用全局安全中间件
 	r.Use(middleware.SecurityHeaders()) // 安全头部中间件
 	r.Use(middleware.HTTPSOnly())       // 强制HTTPS中间件
 
 	// 公开路由（无需登录）
-	public := r.Group("/auth/v1")
+	public := r.Group("/auth")
 	public.Use(middleware.NoCache()) // 认证相关接口不缓存
 	{
+		// 传统认证路由
 		public.POST("/login", authHandler.Login)       // 登录
 		public.POST("/register", authHandler.Register) // 注册
 
@@ -29,7 +31,8 @@ func Setup(r *gin.Engine,
 
 	// 需认证的路由（JWT 验证）
 	protected := r.Group("/auth")
-	protected.Use(middleware.JWTAuth()) // 应用 JWT 中间件
+	protected.Use(middleware.JWTAuth(jwtSecret)) // 传入JWT密钥
+	protected.Use(middleware.NoCache())          // 禁用缓存
 	{
 		protected.GET("/user/me", authHandler.GetCurrentUser) // 获取当前用户信息
 	}

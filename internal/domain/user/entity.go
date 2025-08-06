@@ -17,7 +17,7 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 
 	// OAuth2 相关字段
-	GitHubID  *int64 `gorm:"uniqueIndex" json:"github_id,omitempty"`   // GitHub 用户ID
+	GithubID  *int64 `gorm:"uniqueIndex" json:"github_id,omitempty"`   // GitHub 用户ID
 	AvatarURL string `gorm:"size:255" json:"avatar_url,omitempty"`     // 头像URL
 	AuthType  string `gorm:"size:20;default:'local'" json:"auth_type"` // 认证类型：local, github
 }
