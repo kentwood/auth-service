@@ -21,7 +21,9 @@ go.work
 go.work.sum
 
 # 配置文件（包含敏感信息）
-configs/config.yaml
+configs/config.dev.yaml
+configs/config.test.yaml
+configs/config.prod.yaml
 configs/config.yml
 configs/config.json
 configs/.env
@@ -95,3 +97,5 @@ docs/build/
 # 敏感的示例配置文件（保留模板）
 # configs/config.example.yaml  # 这个文件应该保留作为模板
 localhost.session.sql
+configs/config.dev.yaml
+configs/config.prod.yaml
