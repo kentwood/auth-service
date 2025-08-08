@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/viper"
 )
 
@@ -83,17 +86,81 @@ type HCaptchaConfig struct {
 	Enabled   bool   `mapstructure:"enabled"` // 是否启用验证
 }
 
-// Load 从配置文件加载配置
-func Load(path string) (*Config, error) {
-	viper.SetConfigFile(path)
-	viper.SetConfigType("yaml")
+// Load 加载配置文件
+func Load(configPath ...string) (*Config, error) {
+	var configFile string
+
+	// 1. 优先使用传入的配置文件路径
+	if len(configPath) > 0 && configPath[0] != "" {
+		configFile = configPath[0]
+	} else {
+		// 2. 从环境变量获取配置文件路径
+		if env := os.Getenv("CONFIG_FILE"); env != "" {
+			configFile = env
+		} else {
+			// 3. 根据环境变量确定配置文件
+			env := os.Getenv("APP_ENV")
+			switch env {
+			case "production", "prod":
+				configFile = "configs/config.prod.yaml"
+			case "test", "testing":
+				configFile = "configs/config.test.yaml"
+			case "development", "dev":
+				configFile = "configs/config.dev.yaml"
+			default:
+				// 默认使用开发环境配置
+				configFile = "configs/config.dev.yaml"
+			}
+		}
+	}
+
+	// 检查配置文件是否存在
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("配置文件不存在: %s", configFile)
+	}
+
+	viper.SetConfigFile(configFile)
+
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("读取配置文件失败: %w", err)
 	}
 
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("解析配置文件失败: %w", err)
 	}
+
+	// 从环境变量覆盖敏感配置（安全考虑）
+	overrideFromEnv(&cfg)
+
+	fmt.Printf("✅ 成功加载配置文件: %s\n", configFile)
 	return &cfg, nil
+}
+
+// overrideFromEnv 从环境变量覆盖敏感配置
+func overrideFromEnv(cfg *Config) {
+	// 数据库密码
+	if dbPass := os.Getenv("DB_PASSWORD"); dbPass != "" {
+		cfg.DB.Password = dbPass
+	}
+
+	// Redis 密码
+	if redisPass := os.Getenv("REDIS_PASSWORD"); redisPass != "" {
+		cfg.Redis.Password = redisPass
+	}
+
+	// JWT 密钥
+	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
+		cfg.JWT.Secret = jwtSecret
+	}
+
+	// GitHub OAuth
+	if githubClientSecret := os.Getenv("GITHUB_CLIENT_SECRET"); githubClientSecret != "" {
+		cfg.OAuth2.GitHub.ClientSecret = githubClientSecret
+	}
+
+	// hCaptcha
+	if hcaptchaSecret := os.Getenv("HCAPTCHA_SECRET_KEY"); hcaptchaSecret != "" {
+		cfg.HCaptcha.SecretKey = hcaptchaSecret
+	}
 }
