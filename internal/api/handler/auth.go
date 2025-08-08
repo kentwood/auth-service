@@ -10,14 +10,16 @@ import (
 
 	"auth-service/internal/config"
 	"auth-service/internal/domain/user"
+	"auth-service/pkg/captcha"
 	"auth-service/pkg/jwt"
 	"auth-service/pkg/logger"
 )
 
 // LoginRequest 登录请求参数结构体
 type LoginRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=20"` // 用户名验证规则
-	Password string `json:"password" binding:"required,min=6"`        // 密码验证规则
+	Username      string `json:"username" binding:"required,min=3,max=20"` // 用户名验证规则
+	Password      string `json:"password" binding:"required,min=6"`        // 密码验证规则
+	HCaptchaToken string `json:"hcaptcha_token" binding:"required"`        // hCaptcha 令牌
 }
 
 // RegisterRequest 注册请求参数结构体
@@ -40,27 +42,29 @@ type UserResponse struct {
 
 // AuthHandler 认证处理器
 type AuthHandler struct {
-	userService *user.Service
-	config      *config.Config // 使用完整配置替代 jwtSecret
-	logger      *logger.ZapLogger
+	userService     *user.Service
+	config          *config.Config
+	logger          *logger.ZapLogger
+	hcaptchaService *captcha.HCaptchaService // 新增 hCaptcha 服务
 }
 
 // NewAuthHandler 创建认证处理器实例
-func NewAuthHandler(userService *user.Service, cfg *config.Config, logger *logger.ZapLogger) *AuthHandler {
+func NewAuthHandler(userService *user.Service, cfg *config.Config, logger *logger.ZapLogger, hcaptchaService *captcha.HCaptchaService) *AuthHandler {
 	return &AuthHandler{
-		userService: userService,
-		config:      cfg,
-		logger:      logger,
+		userService:     userService,
+		config:          cfg,
+		logger:          logger,
+		hcaptchaService: hcaptchaService,
 	}
 }
 
 // Login 处理用户登录请求
 // @Summary 用户登录
-// @Description 通过用户名和密码获取JWT令牌
+// @Description 通过用户名和密码获取JWT令牌，需要通过hCaptcha验证
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body LoginRequest true "登录参数"
+// @Param request body LoginRequest true "登录参数，包含hCaptcha令牌"
 // @Success 200 {object} gin.H{token:string, user_id:uint, username:string}
 // @Failure 400 {object} gin.H{error:string}
 // @Failure 401 {object} gin.H{error:string}
@@ -73,12 +77,24 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 调用服务层查询用户
+	// 1. 首先验证 hCaptcha
+	if err := h.hcaptchaService.VerifyToken(c.Request.Context(), req.HCaptchaToken, c.ClientIP()); err != nil {
+		h.logger.Warn("用户登录失败：hCaptcha验证失败",
+			zap.String("username", req.Username),
+			zap.String("client_ip", c.ClientIP()),
+			zap.Error(err),
+		)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请重试"})
+		return
+	}
+
+	// 2. 调用服务层查询用户
 	u, err := h.userService.GetByUsername(req.Username)
 	if err != nil {
 		// 记录详细错误信息到日志（便于调试）
 		h.logger.Warn("用户登录失败：查询用户时发生错误",
 			zap.String("username", req.Username),
+			zap.String("client_ip", c.ClientIP()),
 			zap.Error(err),
 		)
 		// 统一返回认证失败，避免泄露用户是否存在
@@ -86,38 +102,40 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 验证密码
+	// 3. 验证密码
 	if !u.CheckPassword(req.Password) {
 		// 记录密码验证失败（安全审计）
 		h.logger.Warn("用户登录失败：密码错误",
 			zap.String("username", req.Username),
 			zap.Uint("user_id", u.ID),
+			zap.String("client_ip", c.ClientIP()),
 		)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
 		return
 	}
 
-	// 生成JWT令牌（使用配置文件中的密钥）
+	// 4. 生成JWT令牌
 	token, err := jwt.GenerateToken(u.ID, u.Username, h.config.JWT.Secret, 2*time.Hour)
 	if err != nil {
 		// 记录令牌生成失败的详细错误
 		h.logger.Error("JWT令牌生成失败",
 			zap.String("username", req.Username),
 			zap.Uint("user_id", u.ID),
+			zap.String("client_ip", c.ClientIP()),
 			zap.Error(err),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成令牌失败"}) // 对用户隐藏具体错误
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成令牌失败"})
 		return
 	}
 
-	// 记录成功登录日志
+	// 5. 记录成功登录日志
 	h.logger.Info("用户登录成功",
 		zap.String("username", req.Username),
 		zap.Uint("user_id", u.ID),
 		zap.String("client_ip", c.ClientIP()),
 	)
 
-	// 返回登录结果
+	// 6. 返回登录结果
 	c.JSON(http.StatusOK, gin.H{
 		"token":    token,
 		"user_id":  u.ID,

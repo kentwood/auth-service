@@ -6,22 +6,23 @@ import (
 
 // Config 应用配置
 type Config struct {
-	Server ServerConfig `mapstructure:"server"`
-	DB     DBConfig     `mapstructure:"db"`
-	Redis  RedisConfig  `mapstructure:"redis"`
-	JWT    JWTConfig    `mapstructure:"jwt"`
-	Log    LogConfig    `mapstructure:"log"`
-	OAuth2 OAuth2Config `mapstructure:"oauth2"`
-	UI     UIConfig     `mapstructure:"ui"` // 新增 UI 配置
+	Server   ServerConfig   `mapstructure:"server"`
+	DB       DBConfig       `mapstructure:"db"`
+	Redis    RedisConfig    `mapstructure:"redis"`
+	JWT      JWTConfig      `mapstructure:"jwt"`
+	Log      LogConfig      `mapstructure:"log"`
+	OAuth2   OAuth2Config   `mapstructure:"oauth2"`
+	UI       UIConfig       `mapstructure:"ui"`       // 新增 UI 配置
+	HCaptcha HCaptchaConfig `mapstructure:"hcaptcha"` // 新增 hCaptcha 配置
 }
 
 // RedisConfig Redis 配置
 type RedisConfig struct {
-    Host     string `mapstructure:"host"`
-    Port     string `mapstructure:"port"`
-    Password string `mapstructure:"password"`
-    DB       int    `mapstructure:"db"`
-    Prefix   string `mapstructure:"prefix"` // key 前缀
+	Host     string `mapstructure:"host"`
+	Port     string `mapstructure:"port"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+	Prefix   string `mapstructure:"prefix"` // key 前缀
 }
 
 // ServerConfig 服务配置
@@ -73,6 +74,13 @@ type GitHubOAuth2Config struct {
 	ClientID     string `mapstructure:"client_id"`
 	ClientSecret string `mapstructure:"client_secret"`
 	RedirectURL  string `mapstructure:"redirect_url"`
+}
+
+// HCaptchaConfig hCaptcha 配置
+type HCaptchaConfig struct {
+	SecretKey string `mapstructure:"secret_key"`
+	SiteKey   string `mapstructure:"site_key"`
+	Enabled   bool   `mapstructure:"enabled"` // 是否启用验证
 }
 
 // Load 从配置文件加载配置
